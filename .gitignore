@@ -1,0 +1,6 @@
+# ignore everything
+*
+
+# permit gitignore and proto file
+!.gitignore
+!etco.proto

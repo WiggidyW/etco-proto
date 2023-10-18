@@ -1,0 +1,922 @@
+syntax = "proto3";
+package eve_trading_co_proto;
+option go_package = "/proto";
+
+message OptionalInt32 {
+    int32 inner = 1;
+}
+
+enum ErrorCode {
+    OK = 0;
+    SERVER_ERROR = 1;
+    INVALID_REQUEST = 2;
+    INVALID_MERGE = 3;
+}
+
+message AuthRequest {
+    string token = 1; // native token
+}
+
+message AuthResponse {
+    string token = 1; // native token
+    bool authorized = 2; // whether the request was authorized
+}
+
+message ErrorResponse {
+    string error = 1; // error message
+    ErrorCode code = 2; // error code
+}
+
+message CfgTypePricing {
+    bool is_buy = 1;
+    uint32 percentile = 2;
+    uint32 modifier = 3;
+    string market = 4; // MarketKey
+}
+
+message CfgBuybackTypePricing {
+    // at least one of these must be set
+    CfgTypePricing pricing = 1;
+    uint32 reprocessing_efficiency = 2; // 0 - 100
+}
+
+// wrapper for TypePricing
+message CfgShopTypePricing {
+    CfgTypePricing inner = 1;
+}
+
+// wrapper for map<BuybackTypeMapKey, BuybackTypeValue>
+message CfgBuybackSystemTypeBundle {
+    map<string, CfgBuybackTypePricing> inner = 1;
+}
+
+// wrapper for map<ShopTypeMapKey, ShopTypeValue>
+message CfgShopLocationTypeBundle {
+    map<string, CfgShopTypePricing> inner = 1;
+}
+
+message CfgBuybackSystem {
+    string bundle_key = 1; // BuybackSystemBundleKey
+    double m3_fee = 2; // fee per m3
+    double tax_rate = 3; // tax rate (0-1)
+}
+
+message CfgShopLocation {
+    string bundle_key = 1; // ShopLocationBundleKey
+    repeated string banned_flags = 2; // banned asset flags
+    double tax_rate = 3; // tax rate (0-1)
+}
+
+message CfgMarket {
+    string refresh_token = 1; // web token
+    int64 location_id = 2;
+    bool is_structure = 3;
+}
+
+// list of valid IDs for authentication
+message AuthList {
+    // authentication is checked in this exact order, stopping on first match
+    repeated int32 banned_character_ids = 1; // denied
+    repeated int32 permit_character_ids = 2; // allowed
+    repeated int32 banned_corporation_ids = 3; // denied
+    repeated int32 permit_corporation_ids = 4; // allowed
+    repeated int32 permit_alliance_ids = 5; // allowed
+    // denied
+}
+
+message IncludeTypeNaming {
+    bool include_name = 1;
+    bool include_market_groups = 2;
+    bool include_group = 3;
+    bool include_category = 4;
+}
+
+message TypeNamingIndexes {
+    string name = 1; // "" if nil
+    sint32 group_index = 2; // -1 if nil
+    sint32 category_index = 3; // -1 if nil
+    repeated int32 market_group_indexes = 4; // length 0 if nil
+}
+
+message TypeNamingLists {
+    repeated string groups = 1;
+    repeated string categories = 2;
+    repeated string market_groups = 3;
+}
+
+message LocationInfo {
+    bool is_structure = 1;
+    bool forbidden_structure = 2;
+    int32 system_id = 3; // SystemId
+    int32 region_id = 4; // RegionId
+}
+
+message IncludeLocationNaming {
+    bool include_location_name = 1;
+    bool include_system_name = 2;
+    bool include_region_name = 3;
+}
+
+message LocationNamingMaps {
+    map<int64, string> location_names = 1; // LocationId
+    map<int32, string> system_names = 2; // SystemId
+    map<int32, string> region_names = 3; // RegionId
+}
+
+message NamedType {
+    int32 type_id = 1;
+    TypeNamingIndexes type_naming_indexes = 2;
+}
+
+message BasicItem {
+    int32 type_id = 1;
+    int64 quantity = 2;
+}
+
+message NamedBasicItem {
+    int32 type_id = 1;
+    int64 quantity = 2;
+    string name = 3;
+}
+
+message BuybackAppraisal {
+    repeated BuybackParentItem items = 1;
+    string code = 2; // AppraisalCode
+    double price = 3; // sum of []parent.price_total
+    int64 time = 4; // time of the appraisal
+    string version = 5; // version of the pricing scheme
+    int32 system_id = 6; // system used for the appraisal
+    double fee = 7; // sum of item fees
+    double fee_per_m3 = 8; // fee per m3
+    double tax_rate = 9; // tax rate (0-1)
+    double tax = 10;
+}
+
+message BuybackParentItem {
+    int32 type_id = 1;
+    int64 quantity = 2;
+    double price_per_unit = 3;
+    string description = 4; // source of the price
+    repeated BuybackChildItem children = 5;
+    TypeNamingIndexes type_naming_indexes = 6;
+    double fee_per_unit = 7;
+}
+
+message BuybackChildItem {
+    int32 type_id = 1;
+    double quantity_per_parent = 2;
+    double price_per_unit = 3;
+    string description = 4; // source of the price
+    TypeNamingIndexes type_naming_indexes = 5;
+}
+
+message ShopAppraisal {
+    repeated ShopItem items = 1;
+    string code = 2; // AppraisalCode
+    double price = 3; // sum of []item.price_total
+    int64 time = 4; // time of the appraisal
+    string version = 5; // version of the pricing scheme
+    int64 location_id = 6; // location used for the appraisal
+    double tax_rate = 7; // tax rate (0-1)
+    double tax = 8;
+}
+
+message ShopItem {
+    int32 type_id = 1;
+    int64 quantity = 2;
+    double price_per_unit = 3;
+    string description = 4; // source of the price
+    TypeNamingIndexes type_naming_indexes = 5;
+}
+
+message ContractItem {
+    int32 type_id = 1;
+    int64 quantity = 2;
+    TypeNamingIndexes type_naming_indexes = 3;
+}
+
+enum ContractStatus {
+    unknown_status = 0;
+    outstanding = 1;
+    in_progress = 2;
+    finished_issuer = 3;
+    finished_contractor = 4;
+    finished = 5;
+    cancelled = 6;
+    rejected = 7;
+    failed = 8;
+    deleted = 9;
+    reversed = 10;
+}
+
+enum ContractAssigneeType {
+    unknown_assignee_type = 0;
+    corporation = 1;
+    character = 2;
+    alliance = 3;
+}
+
+message Contract {
+    int32 contract_id = 1;
+    ContractStatus status = 2;
+    int64 issued = 3;
+    int64 expires = 4;
+    int64 location_id = 5;
+    double price = 6;
+    bool has_reward = 7;
+    int32 issuer_corp_id = 8;
+    int32 issuer_char_id = 9;
+    int32 assignee_id = 10;
+    ContractAssigneeType assignee_type = 11;
+}
+
+message BuybackContractQueueEntry {
+    string code = 1; // AppraisalCode
+    Contract contract = 2;
+    repeated ContractItem contract_items = 3; // null unless include_items
+    LocationInfo contract_location_info = 4; // null unless include_location_info
+    BuybackAppraisal code_appraisal = 5; // null unless include_code_appraisal
+    int32 appraisal_character_id = 6; // 0 unless include_code_appraisal + non-anonymous appraisal
+    BuybackAppraisal new_appraisal = 7; // null unless include_new_appraisal + include_code_appraisal + include_items
+}
+
+message ShopContractQueueEntry {
+    string code = 1; // AppraisalCode
+    Contract contract = 2;
+    repeated ContractItem contract_items = 3; // null unless include_items
+    LocationInfo contract_location_info = 4; // null unless include_location_info
+    ShopAppraisal code_appraisal = 5; // null unless include_code_appraisal
+    int32 appraisal_character_id = 6; // 0 unless include_code_appraisal + non-anonymous appraisal
+    ShopAppraisal new_appraisal = 7; // null unless include_new_appraisal + include_code_appraisal + include_items
+}
+
+message PurchaseQueueEntry {
+    string code = 1; // AppraisalCode
+    ShopAppraisal code_appraisal = 2; // null unless include_code_appraisal
+    int32 appraisal_character_id = 3; // 0 unless include_code_appraisal
+    ShopAppraisal new_appraisal = 4; // null unless include_new_appraisal + include_code_appraisal
+}
+
+message BuybackAppraisalStatus {
+    string code = 1;
+    Contract contract = 2;
+}
+
+message ShopAppraisalStatus {
+    string code = 1;
+    Contract contract = 2;
+    bool in_purchase_queue = 3;
+}
+
+message CfgGetAuthListRequest {
+    string domain_key = 1; // DomainKey
+    AuthRequest auth = 2;
+}
+
+message CfgGetAuthListResponse {
+    AuthList auth_list = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CfgSetAuthListRequest {
+    string domain_key = 1; // DomainKey
+    AuthList auth_list = 2;
+    AuthRequest auth = 3;
+}
+
+// wrapper for CfgModifyResponse
+message CfgSetAuthListResponse {
+    AuthResponse auth = 1;
+    ErrorResponse error = 2;
+}
+
+// wrapper for AuthRequest
+message CfgGetBuybackSystemTypeMapsBuilderRequest {
+    AuthRequest auth = 1;
+}
+
+message CfgGetBuybackSystemTypeMapsBuilderResponse {
+    map<int32, CfgBuybackSystemTypeBundle> builder = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CfgMergeBuybackSystemTypeMapsBuilderRequest {
+    // the program itself converts this to multiple map<TypeId, BuybackTypeMap>
+    map<int32, CfgBuybackSystemTypeBundle> builder = 1;
+    AuthRequest auth = 2;
+}
+
+// wrapper for CfgModifyResponse
+message CfgMergeBuybackSystemTypeMapsBuilderResponse {
+    bool Modified = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+// wrapper for AuthRequest
+message CfgGetShopLocationTypeMapsBuilderRequest {
+    AuthRequest auth = 1;
+}
+
+message CfgGetShopLocationTypeMapsBuilderResponse {
+    map<int32, CfgShopLocationTypeBundle> builder = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CfgMergeShopLocationTypeMapsBuilderRequest {
+    // the program itself converts this to multiple map<TypeId, ShopTypeMap>
+    map<int32, CfgShopLocationTypeBundle> builder = 1;
+    AuthRequest auth = 2;
+}
+
+// wrapper for CfgModifyResponse
+message CfgMergeShopLocationTypeMapsBuilderResponse {
+    bool Modified = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+// wrapper for AuthRequest
+message CfgGetBuybackSystemsRequest {
+    bool include_location_info = 1;
+    IncludeLocationNaming include_location_naming = 2; // ignored if 1 is false
+    AuthRequest auth = 3;
+}
+
+message CfgGetBuybackSystemsResponse {
+    map<int32, CfgBuybackSystem> systems = 1;
+    map<int32, int32> system_region_map = 2; // SystemId -> RegionId
+    LocationNamingMaps location_naming_maps = 3;
+    AuthResponse auth = 4;
+    ErrorResponse error = 5;
+}
+
+message CfgMergeBuybackSystemsRequest {
+    map<int32, CfgBuybackSystem> systems = 1;
+    AuthRequest auth = 2;
+}
+
+// wrapper for CfgModifyResponse
+message CfgMergeBuybackSystemsResponse {
+    bool Modified = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+// wrapper for AuthRequest
+message CfgGetShopLocationsRequest {
+    bool include_location_info = 1;
+    IncludeLocationNaming include_location_naming = 2; // ignored if 1 is false
+    AuthRequest auth = 3;
+}
+
+message CfgGetShopLocationsResponse {
+    map<int64, CfgShopLocation> locations = 1;
+    map<int64, LocationInfo> location_info_map = 2; // LocationId -> LocationInfo
+    LocationNamingMaps location_naming_maps = 3;
+    AuthResponse auth = 4;
+    ErrorResponse error = 5;
+}
+
+message CfgMergeShopLocationsRequest {
+    map<int64, CfgShopLocation> locations = 1;
+    AuthRequest auth = 2;
+}
+
+// wrapper for CfgModifyResponse
+message CfgMergeShopLocationsResponse {
+    bool Modified = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+// wrapper for AuthRequest
+message CfgGetMarketsRequest {
+    bool include_location_info = 1;
+    IncludeLocationNaming include_location_naming = 2; // ignored if 1 is false
+    AuthRequest auth = 3;
+}
+
+message CfgGetMarketsResponse {
+    map<string, CfgMarket> markets = 1;
+    map<int64, LocationInfo> location_info_map = 2; // LocationId -> LocationInfo
+    LocationNamingMaps location_naming_maps = 3;
+    AuthResponse auth = 4;
+    ErrorResponse error = 5;
+}
+
+message CfgMergeMarketsRequest {
+    map<string, CfgMarket> markets = 1;
+    AuthRequest auth = 2;
+}
+
+// wrapper for CfgModifyResponse
+message CfgMergeMarketsResponse {
+    bool Modified = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+// anonymous or authenticated
+// returns a code if save is true
+message NewBuybackAppraisalRequest {
+    int32 system_id = 1; // SystemId
+    repeated BasicItem items = 2;
+    bool save = 3; // whether to store the appraisal and return a code
+    IncludeTypeNaming include_type_naming = 4;
+    AuthRequest auth = 5; // optional
+}
+
+message NewBuybackAppraisalResponse {
+    BuybackAppraisal appraisal = 1;
+    TypeNamingLists type_naming_lists = 2;
+    AuthResponse auth = 3;
+    ErrorResponse error = 4;
+}
+
+// authenticated
+// returns a code if save is true (but doesn't add it to the purchase queue)
+message NewShopAppraisalRequest {
+    int64 location_id = 1; // LocationId
+    repeated BasicItem items = 2;
+    // bool save = 3; // whether to store the appraisal and return a code
+    IncludeTypeNaming include_type_naming = 3;
+    // AuthRequest auth = 4;
+}
+
+message NewShopAppraisalResponse {
+    ShopAppraisal appraisal = 1;
+    TypeNamingLists type_naming_lists = 2;
+    // AuthResponse auth = 3;
+    ErrorResponse error = 3;
+}
+
+message GetBuybackAppraisalRequest {
+    string code = 1; // AppraisalCode
+    IncludeTypeNaming include_type_naming = 2;
+    bool admin = 3; // whether to use admin auth
+    AuthRequest auth = 4; // optional, admin only (ignored if admin is false)
+    // bool include_location_info = 2;
+    // IncludeTypeNaming include_type_naming = 3;
+    // IncludeLocationNaming include_location_naming = 4; // ignored if 2 is false
+    // bool admin = 5; // whether to use admin auth
+    // AuthRequest auth = 6; // optional, admin only (ignored if admin is false)
+}
+
+message GetBuybackAppraisalResponse {
+    BuybackAppraisal appraisal = 1;
+    string hash_character_id = 2; // obfuscated character id ("" if admin is true)
+    int32 character_id = 3; // admin only, 0 otherwise
+    TypeNamingLists type_naming_lists = 4;
+    AuthResponse auth = 5; // admin only
+    ErrorResponse error = 6; // code not exists
+    // int32 appraisal_region_id = 4;
+    // TypeNamingLists type_naming_lists = 5;
+    // LocationNamingMaps location_naming_maps = 6; // null if not requested
+    // AuthResponse auth = 7; // admin only
+    // ErrorResponse error = 8; // code not exists
+}
+
+message GetShopAppraisalRequest {
+    string code = 1; // AppraisalCode
+    IncludeTypeNaming include_type_naming = 2;
+    bool admin = 3; // whether to use admin auth
+    AuthRequest auth = 4; // optional, admin only (ignored if admin is false)
+    // bool include_location_info = 2;
+    // IncludeTypeNaming include_type_naming = 3;
+    // IncludeLocationNaming include_location_naming = 4; // ignored if 2 is false
+    // bool admin = 5; // whether to use admin auth
+    // AuthRequest auth = 6; // optional, admin only (ignored if admin is false)
+}
+
+message GetShopAppraisalResponse {
+    ShopAppraisal appraisal = 1;
+    string hash_character_id = 2; // obfuscated character id ("" if admin is true)
+    int32 character_id = 3; // 0 if admin is false
+    TypeNamingLists type_naming_lists = 4;
+    AuthResponse auth = 5; // null if admin is false
+    ErrorResponse error = 6; // code not exists
+    // LocationInfo appraisal_location_info = 4; // null unless include_location_info
+    // TypeNamingLists type_naming_lists = 5;
+    // LocationNamingMaps location_naming_maps = 6; // null if not requested
+    // AuthResponse auth = 7; // null if admin is false
+    // ErrorResponse error = 8; // code not exists
+}
+
+message StatusBuybackAppraisalRequest {
+    string code = 1; // AppraisalCode
+    bool include_items = 2;
+    bool include_location_info = 3;
+    IncludeTypeNaming include_type_naming = 4;
+    IncludeLocationNaming include_location_naming = 5; // ignored if 3 is false
+    bool admin = 6; // whether to use admin auth
+    AuthRequest auth = 7;
+}
+
+message StatusBuybackAppraisalResponse {
+    Contract contract = 1;
+    repeated ContractItem contract_items = 2; // null if not requested
+    LocationInfo location_info = 3; // null unless requested
+    TypeNamingLists type_naming_lists = 4; // null if not requested
+    LocationNamingMaps location_naming_maps = 5; // null if not requested
+    AuthResponse auth = 6;
+    ErrorResponse error = 7;
+}
+
+message StatusShopAppraisalRequest {
+    string code = 1; // AppraisalCode
+    bool include_items = 2;
+    bool include_location_info = 3;
+    IncludeTypeNaming include_type_naming = 4;
+    IncludeLocationNaming include_location_naming = 5; // ignored if 3 is false
+    bool admin = 6; // whether to use admin auth
+    AuthRequest auth = 7;
+}
+
+message StatusShopAppraisalResponse {
+    Contract contract = 1;
+    bool in_purchase_queue = 2; // if true, contract is always null
+    repeated ContractItem contract_items = 3; // null if not requested
+    LocationInfo location_info = 4; // null unless requested
+    TypeNamingLists type_naming_lists = 5; // null if not requested
+    LocationNamingMaps location_naming_maps = 6; // null if not requested
+    AuthResponse auth = 7;
+    ErrorResponse error = 8;
+}
+
+message ShopInventoryRequest {
+    int64 location_id = 1; // LocationId
+    IncludeTypeNaming include_type_naming = 2;
+    AuthRequest auth = 3;
+}
+
+message ShopInventoryResponse {
+    repeated ShopItem items = 1;
+    TypeNamingLists type_naming_lists = 2;
+    AuthResponse auth = 3;
+    ErrorResponse error = 4;
+}
+
+message ShopMakePurchaseRequest {
+    int64 location_id = 1; // LocationId
+    repeated BasicItem items = 2;
+    IncludeTypeNaming include_type_naming = 3;
+    AuthRequest auth = 4;
+}
+
+enum MakePurchaseStatus {
+    MPS_SUCCESS = 0;
+    MPS_COOLDOWN_LIMIT = 1;
+    MPS_MAX_ACTIVE_LIMIT = 2;
+    MPS_ITEMS_REJECTED = 3;
+    MPS_ITEMS_UNAVAILABLE = 4;
+    MPS_ITEMS_REJECTED_AND_UNAVAILABLE = 5;
+}
+
+message ShopMakePurchaseResponse {
+    MakePurchaseStatus status = 1;
+    ShopAppraisal appraisal = 2;
+    TypeNamingLists type_naming_lists = 3;
+    AuthResponse auth = 4;
+    ErrorResponse error = 5; // purchase failed
+}
+
+message UserDataRequest {
+    AuthRequest auth = 1;
+}
+
+message UserDataResponse {
+    repeated BuybackAppraisalStatus buyback_appraisals = 1; // AppraisalCode
+    repeated ShopAppraisalStatus shop_appraisals = 2; // AppraisalCode
+    int64 cancelled_purchase = 3; // timestamp of last cancelled purchase
+    int64 made_purchase = 4; // timestamp of last made purchase
+    AuthResponse auth = 5;
+    ErrorResponse error = 6;
+}
+
+message ShopContractQueueRequest {
+    bool include_items = 1;
+    bool include_code_appraisal = 2;
+    bool include_new_appraisal = 3; // requires 2 to be true
+    bool include_location_info = 4;
+    IncludeTypeNaming include_type_naming = 5;
+    IncludeLocationNaming include_location_naming = 6; // ignored if 4 is false
+    AuthRequest auth = 7;
+}
+
+message ShopContractQueueResponse {
+   repeated ShopContractQueueEntry queue = 1;
+    TypeNamingLists type_naming_lists = 2; // null if not requested, empty if no entries
+    LocationNamingMaps location_naming_maps = 3; // null if not requested, empty if no entries
+    AuthResponse auth = 4;
+    ErrorResponse error = 5;
+}
+
+message BuybackContractQueueRequest {
+    bool include_items = 1;
+    bool include_code_appraisal = 2;
+    bool include_new_appraisal = 3; // requires 2 to be true
+    bool include_location_info = 4;
+    IncludeTypeNaming include_type_naming = 5;
+    IncludeLocationNaming include_location_naming = 6; // ignored if 4 is false
+    AuthRequest auth = 7;
+}
+
+message BuybackContractQueueResponse {
+    repeated BuybackContractQueueEntry queue = 1;
+    TypeNamingLists type_naming_lists = 2; // null if not requested, empty if no entries
+    LocationNamingMaps location_naming_maps = 3; // null if not requested, empty if no entries
+    AuthResponse auth = 4;
+    ErrorResponse error = 5;
+}
+
+enum CancelPurchaseStatus {
+    CPS_SUCCESS = 0;
+    CPS_COOLDOWN_LIMIT = 1;
+    CPS_NOT_FOUND = 2;
+    CPS_COOLDOWN_LIMIT_AND_NOT_FOUND = 3;
+    CPS_NOT_ACTIVE = 4;
+}
+
+message ShopCancelPurchaseRequest {
+    string code = 1; // AppraisalCode
+    AuthRequest auth = 2;
+}
+
+message ShopCancelPurchaseResponse {
+    CancelPurchaseStatus status = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message ShopDeletePurchasesRequest {
+    repeated string codes = 1; // AppraisalCode
+    AuthRequest auth = 2;
+}
+
+message ShopDeletePurchasesResponse {
+    AuthResponse auth = 1;
+    ErrorResponse error = 2;
+}
+
+message ParseRequest {
+    string text = 1;
+    // AuthRequest auth = 2;
+}
+
+message ParseResponse {
+    repeated NamedBasicItem known_items = 1;
+    repeated NamedBasicItem unknown_items = 2;
+    // AuthResponse auth = 3;
+    ErrorResponse error = 3;
+}
+
+message SDETypeDataRequest {}
+
+message SDETypeDataResponse {
+    repeated int32 types = 1;
+    ErrorResponse error = 2;
+}
+
+message NamedSDETypeDataRequest {}
+
+message NamedSDETypeDataResponse {
+    repeated NamedType types = 1;
+    TypeNamingLists type_naming_lists = 2;
+    ErrorResponse error = 3;
+}
+
+message ShopLocation {
+    int64 location_id = 1; // LocationId
+    LocationInfo location_info = 2; // null unless requested
+}
+
+message ShopLocationsRequest {
+    bool include_location_info = 1;
+    IncludeLocationNaming include_location_naming = 2; // ignored if 1 is false
+}
+
+message ShopLocationsResponse {
+    repeated ShopLocation locations = 1;
+    LocationNamingMaps location_naming_maps = 2; // null if not requested
+    ErrorResponse error = 3;
+}
+
+message System {
+    int32 system_id = 1; // SystemId
+    int32 region_id = 2;
+}
+
+message BuybackSystemsRequest {
+    IncludeLocationNaming include_location_naming = 1; // system and region names only
+}
+
+message BuybackSystemsResponse {
+    repeated System systems = 1;
+    LocationNamingMaps location_naming_maps = 2; // null if not requested
+    ErrorResponse error = 3;
+}
+
+message ShopPurchaseQueueRequest {
+    bool include_code_appraisal = 1;
+    bool include_new_appraisal = 2; // requires 1 to be true
+    IncludeTypeNaming include_type_naming = 3;
+    AuthRequest auth = 4;
+}
+
+message ShopPurchaseQueueResponse {
+    repeated PurchaseQueueEntry queue = 1;
+    TypeNamingLists type_naming_lists = 2; // null if not requested, empty if no entries
+    AuthResponse auth = 3;
+    ErrorResponse error = 4;
+}
+
+enum EsiApp {
+    EA_AUTH = 0;
+    EA_MARKETS = 1;
+    EA_CORPORATION = 2;
+    EA_STRUCTURE_INFO = 3;
+}
+
+message EsiAppLoginRequest {
+    string code = 1; // esi sso code
+    EsiApp app = 2;
+    AuthRequest auth = 3;
+}
+
+message EsiAppLoginResponse {
+    string token = 1; // esi web token
+    string jwt = 2;
+    AuthResponse auth = 3;
+    ErrorResponse error = 4;
+}
+
+message SDESystem {
+    int32 system_id = 1; // SystemId
+    int32 region_id = 2; // RegionId
+}
+
+message SDESystemsRequest {
+    IncludeLocationNaming include_location_naming = 1; // system and region names only
+}
+
+message SDESystemsResponse {
+    repeated System systems = 1;
+    LocationNamingMaps location_naming_maps = 2; // null if not requested
+    ErrorResponse error = 3;
+}
+
+message CfgGetBuybackBundleKeysRequest {
+    AuthRequest auth = 1;
+}
+
+message CfgGetBuybackBundleKeysResponse {
+    repeated string bundle_keys = 1; // BuybackSystemBundleKey
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CfgGetShopBundleKeysRequest {
+    AuthRequest auth = 1;
+}
+
+message CfgGetShopBundleKeysResponse {
+    repeated string bundle_keys = 1; // ShopLocationBundleKey
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CfgGetMarketNamesRequest {
+    AuthRequest auth = 1;
+}
+
+message CfgGetMarketNamesResponse {
+    repeated string market_names = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message IsAdminRequest {
+    AuthRequest auth = 1;
+}
+
+message IsAdminResponse {
+    bool is_admin = 1;
+    AuthResponse auth = 2;
+    ErrorResponse error = 3;
+}
+
+message CharacterInfoRequest {
+    int32 character_id = 1;
+}
+
+message CharacterInfoResponse {
+    int32 character_id = 1;
+    int32 corporation_id = 2;
+    OptionalInt32 alliance_id = 3;
+    string name = 4;
+    ErrorResponse error = 5;
+}
+
+message CorporationInfoRequest {
+    int32 corporation_id = 1;
+}
+
+message CorporationInfoResponse {
+    int32 corporation_id = 1;
+    OptionalInt32 alliance_id = 2;
+    string name = 3;
+    string ticker = 4;
+    ErrorResponse error = 5;
+}
+
+message AllianceInfoRequest {
+    int32 alliance_id = 1;
+}
+
+message AllianceInfoResponse {
+    int32 alliance_id = 1;
+    string name = 2;
+    string ticker = 3;
+    ErrorResponse error = 4;
+}
+
+service EveTradingCo {
+    // // STATIC ENDPOINTS // // (nextJS static generation / static JS file)
+
+    // lists every SDE type that is published and has a market group
+    rpc SDETypeData(SDETypeDataRequest) returns (SDETypeDataResponse);
+    rpc NamedSDETypeData(NamedSDETypeDataRequest) returns (NamedSDETypeDataResponse);
+    // returns a list of all valid shop locations
+    rpc ShopLocations(ShopLocationsRequest) returns (ShopLocationsResponse);
+    // returns a list of all valid buyback systems
+    rpc BuybackSystems(BuybackSystemsRequest) returns (BuybackSystemsResponse);
+    // returns a list of all systems
+    rpc SDESystems(SDESystemsRequest) returns (SDESystemsResponse);
+
+    // // ADMIN ENDPOINTS // //
+
+    // simply returns whether the user is an admin
+    rpc IsAdmin(IsAdminRequest) returns (IsAdminResponse);
+    // lists the purchase order queue (purchase orders with no contract)
+    rpc ShopPurchaseQueue(ShopPurchaseQueueRequest) returns (ShopPurchaseQueueResponse);
+    // lists active contracts, and, optionally, their original appraisals, new prices, and location info
+    rpc ShopContractQueue(ShopContractQueueRequest) returns (ShopContractQueueResponse); // purchase queue + contract
+    rpc BuybackContractQueue(BuybackContractQueueRequest) returns (BuybackContractQueueResponse); // contracts
+    // lists the request config data
+    rpc CfgGetAuthList(CfgGetAuthListRequest) returns (CfgGetAuthListResponse);
+    rpc CfgGetBuybackSystemTypeMapsBuilder(CfgGetBuybackSystemTypeMapsBuilderRequest) returns (CfgGetBuybackSystemTypeMapsBuilderResponse);
+    rpc CfgGetShopLocationTypeMapsBuilder(CfgGetShopLocationTypeMapsBuilderRequest) returns (CfgGetShopLocationTypeMapsBuilderResponse);
+    rpc CfgGetBuybackSystems(CfgGetBuybackSystemsRequest) returns (CfgGetBuybackSystemsResponse);
+    rpc CfgGetShopLocations(CfgGetShopLocationsRequest) returns (CfgGetShopLocationsResponse);
+    rpc CfgGetMarkets(CfgGetMarketsRequest) returns (CfgGetMarketsResponse);
+    rpc CfgGetMarketNames(CfgGetMarketNamesRequest) returns (CfgGetMarketNamesResponse);
+    rpc CfgGetBuybackBundleKeys(CfgGetBuybackBundleKeysRequest) returns (CfgGetBuybackBundleKeysResponse);
+    rpc CfgGetShopBundleKeys(CfgGetShopBundleKeysRequest) returns (CfgGetShopBundleKeysResponse);
+    // replaces the existing config data with the given config data
+    rpc CfgSetAuthList(CfgSetAuthListRequest) returns (CfgSetAuthListResponse);
+    // merges the given config data into the existing config data
+    rpc CfgMergeBuybackSystemTypeMapsBuilder(CfgMergeBuybackSystemTypeMapsBuilderRequest) returns (CfgMergeBuybackSystemTypeMapsBuilderResponse);
+    rpc CfgMergeShopLocationTypeMapsBuilder(CfgMergeShopLocationTypeMapsBuilderRequest) returns (CfgMergeShopLocationTypeMapsBuilderResponse);
+    rpc CfgMergeBuybackSystems(CfgMergeBuybackSystemsRequest) returns (CfgMergeBuybackSystemsResponse);
+    rpc CfgMergeShopLocations(CfgMergeShopLocationsRequest) returns (CfgMergeShopLocationsResponse);
+    rpc CfgMergeMarkets(CfgMergeMarketsRequest) returns (CfgMergeMarketsResponse);
+    // cancels the purchase orders for the given codes
+    rpc ShopDeletePurchases(ShopDeletePurchasesRequest) returns (ShopDeletePurchasesResponse);
+    // logs into the requested app
+    rpc EsiAppLogin(EsiAppLoginRequest) returns (EsiAppLoginResponse);
+
+    // // USER ENDPOINTS // //
+
+    // returns entity info for the given entity id
+    rpc CharacterInfo(CharacterInfoRequest) returns (CharacterInfoResponse);
+    rpc CorporationInfo(CorporationInfoRequest) returns (CorporationInfoResponse);
+    rpc AllianceInfo(AllianceInfoRequest) returns (AllianceInfoResponse);
+    // parses an input string into a list of named basic items
+    rpc Parse(ParseRequest) returns (ParseResponse);
+    // returns a buyback appraisal for the provided items and its code (if saved)
+    rpc NewBuybackAppraisal(NewBuybackAppraisalRequest) returns (NewBuybackAppraisalResponse);
+    // returns a shop appraisal for the provided items
+    rpc NewShopAppraisal(NewShopAppraisalRequest) returns (NewShopAppraisalResponse);
+    // returns the users appraisal codes
+    rpc UserData(UserDataRequest) returns (UserDataResponse);
+    // returns purchasable items for the given location
+    rpc ShopInventory(ShopInventoryRequest) returns (ShopInventoryResponse);
+    // places a purchase order for the given items and location
+    rpc ShopMakePurchase(ShopMakePurchaseRequest) returns (ShopMakePurchaseResponse);
+    // cancel the purchase order for the given code
+    rpc ShopCancelPurchase(ShopCancelPurchaseRequest) returns (ShopCancelPurchaseResponse);
+
+    // // ADMIN / USER ENDPOINTS // // (override via parameters)
+
+    // returns the appraisal for the given code
+    rpc GetBuybackAppraisal(GetBuybackAppraisalRequest) returns (GetBuybackAppraisalResponse);
+    rpc GetShopAppraisal(GetShopAppraisalRequest) returns (GetShopAppraisalResponse);
+    // returns the status for the given code
+    // only the character that made the appraisal is authenticated (unless admin is true)
+    rpc StatusBuybackAppraisal(StatusBuybackAppraisalRequest) returns (StatusBuybackAppraisalResponse);
+    rpc StatusShopAppraisal(StatusShopAppraisalRequest) returns (StatusShopAppraisalResponse);
+}
