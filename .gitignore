@@ -1,6 +1,7 @@
 # ignore everything
 *
 
-# permit gitignore and proto file
+# permit readme, gitignore, and proto file
 !.gitignore
 !etco.proto
+!README.md
